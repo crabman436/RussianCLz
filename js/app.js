@@ -3,10 +3,12 @@
   "use strict";
 
   var C = window.ClozeCore;
+  var G = window.Grammar;
   var ITEMS = C.buildItems(window.VOCAB);
   var CATEGORIES = C.categoriesOf(ITEMS);
   var STORAGE_KEY = "russianclz-v1";
   var LEVEL_LABELS = ["0%", "25%", "50%", "75%", "100%"];
+  var DRILL_POINTS = { mc: 2, text: 4 };
 
   var state = loadState();
   var view = { name: "home" };
@@ -17,6 +19,7 @@
   function defaultState() {
     return {
       progress: {},
+      grammar: {},
       score: 0,
       answered: 0,
       correctTotal: 0,
@@ -31,6 +34,7 @@
       if (raw) {
         var saved = JSON.parse(raw);
         s.progress = saved.progress || {};
+        s.grammar = saved.grammar || {};
         s.score = saved.score || 0;
         s.answered = saved.answered || 0;
         s.correctTotal = saved.correctTotal || 0;
@@ -84,6 +88,15 @@
     if (!window.speechSynthesis) { return false; }
     return window.speechSynthesis.getVoices().some(function (v) { return /^ru/i.test(v.lang); });
   }
+  function drillStats(kind) {
+    var qs = G.DRILLS[kind].build(C);
+    var s = { total: qs.length, seen: 0, correct: 0, wrong: 0 };
+    qs.forEach(function (q) {
+      var e = state.grammar[q.id];
+      if (e) { s.seen += 1; s.correct += e.correct; s.wrong += e.wrong; }
+    });
+    return s;
+  }
 
   // ---------- rendering ----------
   function render() {
@@ -91,6 +104,7 @@
     else if (view.name === "play") { renderPlay(); }
     else if (view.name === "summary") { renderSummary(); }
     else if (view.name === "browse") { renderBrowse(); }
+    else if (view.name === "lesson") { renderLesson(); }
     window.scrollTo(0, 0);
   }
 
@@ -118,6 +132,22 @@
         <td class="num">${cs.mastered}</td>
         <td><button class="btn small" data-action="play-cat" data-cat="${esc(c)}">Play</button></td>
       </tr>`;
+    }).join("");
+
+    var grammarRows = G.LESSONS.map(function (l) {
+      var d = G.DRILLS[l.drill];
+      var ds = drillStats(l.drill);
+      var acc = ds.correct + ds.wrong ? Math.round((ds.correct / (ds.correct + ds.wrong)) * 100) + "% right" : "not started";
+      return h`<div class="grammar-row">
+        <div>
+          <div class="grammar-title">${esc(l.title)}</div>
+          <div class="muted small">${esc(d.desc)} · ${ds.total} questions · ${acc}</div>
+        </div>
+        <div class="row">
+          <button class="btn small" data-action="lesson" data-id="${l.id}">Read lesson</button>
+          <button class="btn small primary" data-action="drill" data-kind="${l.drill}">Drill</button>
+        </div>
+      </div>`;
     }).join("");
 
     app.innerHTML = h`
@@ -188,6 +218,12 @@
       </section>
 
       <section class="card">
+        <h2>Grammar</h2>
+        <p class="muted small">Short lessons built from the word list, each with a drill. Drills use the round size above; the plural drill also follows the answer mode (typing gives 4 points, choice gives 2). Questions you get wrong come back more often.</p>
+        <div class="grammar-list">${grammarRows}</div>
+      </section>
+
+      <section class="card">
         <h2>Collections</h2>
         <div class="table-wrap">
         <table>
@@ -214,7 +250,29 @@
     `;
   }
 
+  function renderLesson() {
+    var lesson = G.LESSONS.filter(function (l) { return l.id === view.id; })[0] || G.LESSONS[0];
+    var idx = G.LESSONS.indexOf(lesson);
+    var prev = G.LESSONS[idx - 1];
+    var nextL = G.LESSONS[idx + 1];
+    app.innerHTML = h`
+      <header class="top">
+        <button class="btn small" data-action="home">← Home</button>
+        <div class="pills"><button class="btn small primary" data-action="drill" data-kind="${lesson.drill}">Drill: ${esc(G.DRILLS[lesson.drill].title)}</button></div>
+      </header>
+      <section class="card lesson" lang="ru">
+        <h2>${esc(lesson.title)}</h2>
+        ${lesson.html}
+        <div class="row between lesson-nav">
+          <span>${prev ? '<button class="btn small" data-action="lesson" data-id="' + prev.id + '">← ' + esc(prev.title) + "</button>" : ""}</span>
+          <span>${nextL ? '<button class="btn small" data-action="lesson" data-id="' + nextL.id + '">' + esc(nextL.title) + " →</button>" : ""}</span>
+        </div>
+        <button class="btn primary big" data-action="drill" data-kind="${lesson.drill}">Start the ${esc(G.DRILLS[lesson.drill].title.toLowerCase())}</button>
+      </section>`;
+  }
+
   function renderPlay() {
+    if (round.kind === "drill") { return renderDrill(); }
     var item = round.items[round.index];
     var set = state.settings;
     var entry = C.entryFor(state.progress, item.id);
@@ -230,19 +288,7 @@
 
     var answerArea;
     if (!answered) {
-      if (set.mode === "mc") {
-        answerArea = '<div class="options">' + round.options.map(function (o, i) {
-          return '<button class="btn option" data-action="choose" data-i="' + i + '"><kbd>' + (i + 1) + "</kbd> " + esc(o.label) + "</button>";
-        }).join("") + "</div>";
-      } else {
-        answerArea = h`
-          <form class="typing" data-action="submit">
-            <input type="text" id="answer" autocomplete="off" autocapitalize="off" spellcheck="false" lang="ru" placeholder="Type the missing word…" autofocus>
-            <button class="btn primary" type="submit">Check</button>
-            <button class="btn" type="button" data-action="giveup">Show answer</button>
-          </form>
-          <p class="muted small">Stress marks, capitalisation and ё/е are ignored when checking.</p>`;
-      }
+      answerArea = set.mode === "mc" ? optionButtons(round.options) : typingForm("Type the missing word…", "Stress marks, capitalisation and ё/е are ignored when checking.");
     } else {
       var newEntry = C.entryFor(state.progress, item.id);
       answerArea = h`
@@ -257,20 +303,12 @@
             <span class="muted small">Mastery: ${masteryDots(newEntry.level)} ${LEVEL_LABELS[newEntry.level]}${round.lastCorrect ? " · next review in " + C.INTERVALS_DAYS[newEntry.level] + " day" + (C.INTERVALS_DAYS[newEntry.level] === 1 ? "" : "s") : " · back to 0%"}</span>
             ${hasRussianVoice() ? '<button class="btn small" data-action="speak" title="Read aloud">🔊 Listen</button>' : ""}
           </div>
-          <button class="btn primary big" data-action="next" id="next">${round.index + 1 < round.items.length ? "Next" : "Finish round"} <kbd>Enter</kbd></button>
+          ${nextButton()}
         </div>`;
     }
 
     app.innerHTML = h`
-      <header class="top">
-        <button class="btn small" data-action="home">← Home</button>
-        <div class="pills">
-          <span class="pill">${round.index + 1} / ${round.items.length}</span>
-          <span class="pill" title="Round score">+${round.points}</span>
-          <span class="pill" title="Streak">🔥 ${round.streak}</span>
-        </div>
-      </header>
-      <div class="progress"><div style="width:${Math.round((round.index / round.items.length) * 100)}%"></div></div>
+      ${playHeader()}
       <section class="card play">
         <div class="row between meta">
           <span class="chip">${esc(item.cat)}</span>
@@ -281,13 +319,87 @@
         ${answerArea}
       </section>
     `;
+    focusInput();
+  }
+
+  function renderDrill() {
+    var q = round.items[round.index];
+    var answered = round.answered;
+    var answerArea;
+    if (!answered) {
+      answerArea = round.options ? optionButtons(round.options) : typingForm("Type the plural…", "Stress marks and ё/е are ignored when checking.");
+    } else {
+      answerArea = h`
+        <div class="reveal ${round.lastCorrect ? "ok" : "bad"}">
+          <div class="verdict">${round.lastCorrect ? "Correct! +" + round.lastPoints : "Incorrect" + (round.lastInput ? " — you " + (round.options ? "chose" : "wrote") + " “" + esc(round.lastInput) + "”" : "")}</div>
+          <div class="word"><span class="ru">${esc(q.answer)}</span></div>
+          <div class="explain">${q.explain}</div>
+          <div class="row between">
+            <span></span>
+            ${hasRussianVoice() ? '<button class="btn small" data-action="speak" title="Read aloud">🔊 Listen</button>' : ""}
+          </div>
+          ${nextButton()}
+        </div>`;
+    }
+    app.innerHTML = h`
+      ${playHeader()}
+      <section class="card play">
+        <div class="row between meta">
+          <span class="chip">${esc(G.DRILLS[round.drill].title)}</span>
+          <button class="link small" data-action="lesson" data-id="${G.DRILLS[round.drill].lesson}">Lesson</button>
+        </div>
+        <p class="sentence" lang="ru">${q.prompt}</p>
+        <p class="translation">${q.sub}</p>
+        ${answerArea}
+      </section>`;
+    focusInput();
+  }
+
+  function playHeader() {
+    return h`
+      <header class="top">
+        <button class="btn small" data-action="home">← Home</button>
+        <div class="pills">
+          <span class="pill">${round.index + 1} / ${round.items.length}</span>
+          <span class="pill" title="Round score">+${round.points}</span>
+          <span class="pill" title="Streak">🔥 ${round.streak}</span>
+        </div>
+      </header>
+      <div class="progress"><div style="width:${Math.round((round.index / round.items.length) * 100)}%"></div></div>`;
+  }
+  function optionButtons(options) {
+    return '<div class="options' + (options.length === 2 ? " two" : "") + '">' + options.map(function (o, i) {
+      return '<button class="btn option" data-action="choose" data-i="' + i + '"><kbd>' + (i + 1) + "</kbd> " + esc(o.label) + "</button>";
+    }).join("") + "</div>";
+  }
+  function typingForm(placeholder, hint) {
+    return h`
+      <form class="typing" data-action="submit">
+        <input type="text" id="answer" autocomplete="off" autocapitalize="off" spellcheck="false" lang="ru" placeholder="${placeholder}" autofocus>
+        <button class="btn primary" type="submit">Check</button>
+        <button class="btn" type="button" data-action="giveup">Show answer</button>
+      </form>
+      <p class="muted small">${hint}</p>`;
+  }
+  function nextButton() {
+    return '<button class="btn primary big" data-action="next" id="next">' + (round.index + 1 < round.items.length ? "Next" : "Finish round") + " <kbd>Enter</kbd></button>";
+  }
+  function focusInput() {
     var input = document.getElementById("answer");
     if (input) { input.focus(); }
   }
 
   function renderSummary() {
     var n = round.items.length;
+    var isDrill = round.kind === "drill";
     var rows = round.results.map(function (r) {
+      if (isDrill) {
+        return h`<tr class="${r.correct ? "ok" : "bad"}">
+          <td>${r.correct ? "✓" : "✗"}</td>
+          <td lang="ru">${r.item.prompt}</td>
+          <td lang="ru"><b>${esc(r.item.answer)}</b></td>
+        </tr>`;
+      }
       return h`<tr class="${r.correct ? "ok" : "bad"}">
         <td>${r.correct ? "✓" : "✗"}</td>
         <td lang="ru">${esc(r.item.ru)}</td>
@@ -295,13 +407,16 @@
         <td>${masteryDots(C.entryFor(state.progress, r.item.id).level)}</td>
       </tr>`;
     }).join("");
+    var again = isDrill
+      ? '<button class="btn primary big" data-action="drill" data-kind="' + round.drill + '">Play again</button>'
+      : '<button class="btn primary big" data-action="play" data-mode="' + round.mode + '">Play again (' + round.mode + ")</button>";
     app.innerHTML = h`
       <header class="top">
         <button class="btn small" data-action="home">← Home</button>
         <div class="pills"><span class="pill">★ ${state.score}</span></div>
       </header>
       <section class="card">
-        <h2>Round complete</h2>
+        <h2>${isDrill ? esc(G.DRILLS[round.drill].title) + " complete" : "Round complete"}</h2>
         <div class="stats">
           <div><b>${round.correct} / ${n}</b><span>correct</span></div>
           <div><b>+${round.points}</b><span>points</span></div>
@@ -309,7 +424,7 @@
         </div>
         <div class="table-wrap"><table><tbody>${rows}</tbody></table></div>
         <div class="play-buttons">
-          <button class="btn primary big" data-action="play" data-mode="${round.mode}">Play again (${round.mode})</button>
+          ${again}
           <button class="btn big" data-action="home">Home</button>
         </div>
       </section>`;
@@ -345,6 +460,10 @@
   }
 
   // ---------- game flow ----------
+  function newRound(extra) {
+    round = { items: [], index: 0, answered: false, options: null, points: 0, correct: 0, streak: 0, bestStreak: 0, results: [] };
+    Object.keys(extra).forEach(function (k) { round[k] = extra[k]; });
+  }
   function startRound(mode, category) {
     if (category !== undefined) { state.settings.category = category; saveState(); }
     var items = C.selectRound(ITEMS, state.progress, {
@@ -354,8 +473,20 @@
       alert(mode === "review" ? "Nothing is due for review right now." : "No new words left in this collection.");
       return;
     }
-    round = { mode: mode, items: items, index: 0, answered: false, options: null,
-      points: 0, correct: 0, streak: 0, bestStreak: 0, results: [] };
+    newRound({ kind: "cloze", mode: mode, items: items });
+    prepareQuestion();
+    view = { name: "play" };
+    render();
+  }
+  function startDrill(kind) {
+    var all = G.DRILLS[kind].build(C);
+    // Weight: questions answered wrong most often come first, then least-seen; random tiebreak.
+    var scored = all.map(function (q) {
+      var e = state.grammar[q.id] || { seen: 0, correct: 0, wrong: 0 };
+      return { q: q, w: e.wrong * 2 - e.correct - e.seen * 0.5 + Math.random() * 1.5 };
+    }).sort(function (a, b) { return b.w - a.w; });
+    var items = C.shuffle(scored.slice(0, state.settings.roundSize).map(function (s) { return s.q; }));
+    newRound({ kind: "drill", drill: kind, items: items });
     prepareQuestion();
     view = { name: "play" };
     render();
@@ -364,15 +495,36 @@
     var item = round.items[round.index];
     round.answered = false;
     round.lastInput = "";
-    round.options = state.settings.mode === "mc" ? C.pickOptions(item, ITEMS) : null;
+    if (round.kind === "drill") {
+      var typing = state.settings.mode === "text" && item.kind === "plural";
+      round.options = typing ? null : item.options;
+    } else {
+      round.options = state.settings.mode === "mc" ? C.pickOptions(item, ITEMS) : null;
+    }
+  }
+  function checkTyped(input) {
+    var item = round.items[round.index];
+    if (round.kind === "drill") {
+      var n = C.normalizeRu(input);
+      return n === C.normalizeRu(item.answer) || item.alts.some(function (a) { return C.normalizeRu(a) === n; });
+    }
+    return C.isCorrect(input, item);
   }
   function answer(input, correct) {
     if (round.answered) { return; }
     var item = round.items[round.index];
     var now = Date.now();
-    var entry = C.entryFor(state.progress, item.id);
-    state.progress[item.id] = C.applyAnswer(entry, correct, now);
-    var pts = correct ? C.POINTS[state.settings.mode] : 0;
+    var pts;
+    if (round.kind === "drill") {
+      var e = state.grammar[item.id] || { seen: 0, correct: 0, wrong: 0 };
+      e.seen += 1; e.last = now;
+      if (correct) { e.correct += 1; } else { e.wrong += 1; }
+      state.grammar[item.id] = e;
+      pts = correct ? (round.options ? DRILL_POINTS.mc : DRILL_POINTS.text) : 0;
+    } else {
+      state.progress[item.id] = C.applyAnswer(C.entryFor(state.progress, item.id), correct, now);
+      pts = correct ? C.POINTS[state.settings.mode] : 0;
+    }
     round.answered = true;
     round.lastCorrect = correct;
     round.lastInput = input;
@@ -392,7 +544,10 @@
     state.bestStreak = Math.max(state.bestStreak, round.streak);
     saveState();
     render();
-    speak(item.sentence.replace(/\{\{|\}\}/g, ""));
+    speak(speakText(item));
+  }
+  function speakText(item) {
+    return round.kind === "drill" ? item.speak : item.sentence.replace(/\{\{|\}\}/g, "");
   }
   function next() {
     if (!round.answered) { return; }
@@ -438,13 +593,15 @@
     else if (action === "play") { startRound(el.getAttribute("data-mode")); }
     else if (action === "play-cat") { startRound("mixed", el.getAttribute("data-cat")); }
     else if (action === "browse") { view = { name: "browse", cat: el.getAttribute("data-cat") }; render(); }
+    else if (action === "lesson") { view = { name: "lesson", id: el.getAttribute("data-id") }; render(); }
+    else if (action === "drill") { startDrill(el.getAttribute("data-kind")); }
     else if (action === "choose") {
       var o = round.options[Number(el.getAttribute("data-i"))];
       answer(o.label, o.correct);
     }
     else if (action === "giveup") { answer("", false); }
     else if (action === "next") { next(); }
-    else if (action === "speak") { speak(round.items[round.index].sentence.replace(/\{\{|\}\}/g, "")); }
+    else if (action === "speak") { speak(speakText(round.items[round.index])); }
     else if (action === "export") { exportProgress(); }
     else if (action === "reset") {
       if (confirm("Delete all progress and scores? This cannot be undone.")) {
@@ -461,7 +618,7 @@
     ev.preventDefault();
     var input = document.getElementById("answer").value;
     if (!input.trim()) { return; }
-    answer(input, C.isCorrect(input, round.items[round.index]));
+    answer(input, checkTyped(input));
   });
 
   app.addEventListener("change", function (ev) {
