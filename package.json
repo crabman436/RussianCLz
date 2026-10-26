@@ -1,0 +1,11 @@
+{
+  "name": "russianclz",
+  "version": "1.0.0",
+  "description": "Clozemaster-style fill-in-the-blank practice for a first-year Russian vocabulary list",
+  "private": true,
+  "scripts": {
+    "test": "node test/validate.js",
+    "start": "node server.js"
+  },
+  "license": "MIT"
+}
