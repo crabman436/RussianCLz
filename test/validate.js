@@ -83,5 +83,66 @@ if (items) {
   assert(summary.due === 1 && summary.fresh === items.length - 2, "summary counts due and fresh");
 }
 
+
+// ---- grammar data ----
+(function () {
+  const G = require(path.join(__dirname, "..", "js", "grammar.js"));
+  const items = C.buildItems(VOCAB);
+  const headwords = new Set(items.map((i) => C.normalizeRu(i.ru)));
+  const seen = new Set();
+  G.NOUNS.forEach((n, i) => {
+    const where = `noun ${i} (${n[0]})`;
+    assert(n.length === 6, `${where}: expected 6 fields`);
+    assert(["m", "f", "n", "pl"].includes(n[1]), `${where}: bad gender`);
+    assert(G.GENDER_RULES[n[2]], `${where}: unknown gender rule ${n[2]}`);
+    assert(!LATIN.test(n[0]), `${where}: Latin letters in word`);
+    assert(!seen.has(n[0]), `${where}: duplicate noun`);
+    seen.add(n[0]);
+    assert(headwords.has(C.normalizeRu(n[0])), `${where}: not in the vocabulary list`);
+    if (n[3]) {
+      assert(G.PLURAL_RULES[n[4]], `${where}: unknown plural rule ${n[4]}`);
+      assert(!LATIN.test(n[3]), `${where}: Latin letters in plural`);
+      if (n[4] === "spell7") { assert(/[гкхжчшщ]и$/.test(C.stripStress(n[3])), `${where}: spell7 plural should end in 7-letter + и`); }
+      if (n[4] === "hard-y") { assert(/ы$/.test(C.stripStress(n[3].split("|")[0])), `${where}: hard-y plural should end in ы`); }
+      if (n[4] === "indecl") { assert(n[3] === n[0], `${where}: indeclinable plural must equal singular`); }
+    } else {
+      assert(n[4] === null, `${where}: plural rule without plural`);
+    }
+    if (n[1] === "pl") { assert(n[2] === "pl-only" && !n[3], `${where}: plural-only noun misconfigured`); }
+  });
+  G.ADJECTIVES.forEach((a, i) => {
+    const where = `adjective ${i} (${a[0]})`;
+    assert(a.length === 6, `${where}: expected 6 fields`);
+    const forms = a.slice(0, 4).map(C.stripStress);
+    assert(["all", "person", "thing"].includes(a[5]), `${where}: bad fit tag`);
+    if (forms[0].length <= 4) { return; } // possessives (мой, наш, чей) have their own forms
+    assert(/(ый|ий|ой)$/.test(forms[0]), `${where}: odd masculine form`);
+    assert(/(ая|ья)$/.test(forms[1]), `${where}: feminine should end in -ая`);
+    assert(/(ое|ее|оё|ьё)$/.test(forms[2]), `${where}: neuter should end in -ое/-ее`);
+    assert(/(ые|ие|ьи)$/.test(forms[3]), `${where}: plural should end in -ые/-ие`);
+    if (/[гкхжчшщ]ый$/.test(forms[0]) || /[гкхжчшщ]ые$/.test(forms[3])) { fail(`${where}: violates the 7-letter rule`); }
+  });
+  G.LESSONS.forEach((l) => assert(G.DRILLS[l.drill], `lesson ${l.id}: unknown drill`));
+
+  let seed = 7;
+  const rng = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+  Object.keys(G.DRILLS).forEach((kind) => {
+    const qs = G.DRILLS[kind].build(C, rng);
+    assert(qs.length >= 20, `${kind}: too few questions`);
+    const ids = new Set();
+    qs.forEach((q) => {
+      assert(!ids.has(q.id), `${kind}: duplicate question id ${q.id}`);
+      ids.add(q.id);
+      assert(q.options.filter((o) => o.correct).length === 1, `${kind} ${q.id}: expected exactly one correct option`);
+      assert(new Set(q.options.map((o) => C.normalizeRu(o.label))).size === q.options.length, `${kind} ${q.id}: duplicate options`);
+      assert(q.options.length === (kind === "spelling" ? 2 : 4), `${kind} ${q.id}: wrong option count`);
+      const correct = q.options.find((o) => o.correct).label;
+      assert(C.normalizeRu(correct) === C.normalizeRu(q.answer) || (kind === "gender"), `${kind} ${q.id}: correct option does not match answer`);
+      assert(typeof q.explain === "string" && q.explain.length > 10, `${kind} ${q.id}: missing explanation`);
+    });
+  });
+  console.log(`grammar: ${G.NOUNS.length} nouns, ${G.ADJECTIVES.length} adjectives, ${Object.keys(G.DRILLS).map((k) => k + "=" + G.DRILLS[k].build(C, rng).length).join(" ")}`);
+})();
+
 if (failures) { console.error(`${failures} check(s) failed`); process.exit(1); }
 console.log("All checks passed.");

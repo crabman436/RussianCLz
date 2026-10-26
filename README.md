@@ -13,6 +13,19 @@ No build step and no dependencies. Either:
 
 Pushing to `main` deploys the app to GitHub Pages via the included workflow (enable Pages → Source: GitHub Actions in the repository settings once).
 
+## Grammar lessons and drills
+
+The home screen also has a **Grammar** section with four short lessons written around the same words, each with a drill:
+
+| Lesson | Drill |
+| --- | --- |
+| Noun gender (endings, -ь words, папа/дядя, -мя, indeclinables, plural-only nouns) | Is the noun masculine, feminine, neuter or plural only? |
+| Nominative plural (-ы/-и/-а/-я, fleeting vowels, stressed -а́, -ья, irregulars) | Type or choose the plural |
+| The 7-letter spelling rule (г к х ж ч ш щ + и, never ы; note on the 5-letter rule) | ы or и? ый or ий? |
+| Adjective endings (-ый/-ий/-ой, -ая, -ое/-ее, -ые/-ие, agreement, possessives) | Pick the form that agrees with the noun |
+
+Every drill answer comes with a one-line explanation of the rule that applies. Questions you miss are weighted to come back sooner.
+
 ## Features
 
 - **Review / Learn new / Mixed** rounds, per category or across the whole list
@@ -30,10 +43,11 @@ Pushing to `main` deploys the app to GitHub Pages via the included workflow (ena
 | --- | --- |
 | `js/data.js` | The vocabulary: `[category, headword, English, sentence with {{blank}}, translation, note]` |
 | `js/core.js` | Pure game logic (normalisation, option picking, round selection, spaced repetition) |
+| `js/grammar.js` | Noun gender/plural data, adjective forms, lesson text and drill question generators |
 | `js/app.js` | UI rendering, keyboard handling, persistence |
 | `css/style.css` | Styles |
 | `test/validate.js` | Data validation and logic tests (`npm test`) |
 
 ## Adding or editing words
 
-Edit `js/data.js`. Each row needs exactly one `{{blank}}` in the sentence whose text matches the headword (stress marks are optional). Run `npm test` to check the data: it also catches stray Latin letters inside Russian text and duplicate entries.
+Edit `js/data.js` for sentences, or `js/grammar.js` for nouns, plurals and adjectives. Each sentence row needs exactly one `{{blank}}` in the sentence whose text matches the headword (stress marks are optional). Run `npm test` to check the data: it also catches stray Latin letters inside Russian text and duplicate entries.

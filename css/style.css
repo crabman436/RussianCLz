@@ -145,3 +145,22 @@ footer { text-align: center; margin-top: 10px; }
   .options { grid-template-columns: 1fr; }
   .brand { font-size: 1.2rem; }
 }
+
+/* grammar */
+.grammar-list { display: flex; flex-direction: column; gap: 8px; }
+.grammar-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; background: var(--card-2); border-radius: 10px; }
+.grammar-title { font-weight: 600; }
+.lesson h2 { font-size: 1.4rem; }
+.lesson h3 { margin: 18px 0 6px; font-size: 1rem; color: var(--accent); }
+.lesson p, .lesson li { line-height: 1.6; }
+.lesson table { margin: 8px 0 4px; }
+.lesson td { font-size: .95rem; }
+.lesson ul { padding-left: 20px; }
+.lesson .big-rule { font-size: 1.3rem; background: var(--card-2); padding: 14px; border-radius: 10px; text-align: center; }
+.lesson-nav { margin: 20px 0 12px; }
+.gap { color: var(--accent); border-bottom: 2px solid var(--accent); padding: 0 2px; letter-spacing: .1em; }
+.options.two { grid-template-columns: 1fr 1fr; }
+.options.two .option { text-align: center; font-size: 1.4rem; }
+.explain { margin: 6px 0 10px; line-height: 1.6; }
+.explain b { color: var(--warn); }
+.link.small { background: none; border: 0; color: var(--accent); cursor: pointer; font: inherit; font-size: .85rem; padding: 0; }
