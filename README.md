@@ -37,7 +37,7 @@ Every drill answer comes with a one-line explanation of the rule that applies. Q
 - Spaced repetition: a sentence comes back after 1, 10, 30 and 180 days as its mastery grows
 - Score, streaks, per-collection progress, and a browse view of every word with its sentence
 - Word notes from the list (gender, plural forms, feminine forms, pronunciation hints)
-- Optional read-aloud using the browser's Russian voice
+- Pronunciation: a 🔊 button reads the word or sentence with the browser's Russian voice; with read-aloud on, meaning-drill words are spoken as they appear and answers after you respond
 - Progress lives in `localStorage`; export/import it as JSON to move between devices
 - Keyboard: `1`–`4` choose, `Enter` submit / next, `Esc` home
 
