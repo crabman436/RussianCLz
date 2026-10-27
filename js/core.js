@@ -44,7 +44,8 @@
         answer: m[1],
         after: row[3].slice(m.index + m[0].length),
         translation: row[4],
-        note: row[5] || ""
+        note: row[5] || "",
+        alt: row[6] || ""
       };
     });
   }
@@ -99,6 +100,64 @@
 
   function isCorrect(input, item) {
     return normalizeRu(input) === normalizeRu(item.answer);
+  }
+
+  // ---- English answer checking (Russian word -> type the meaning) ----
+  var CONTRACTIONS = [[/\bwhat'?s\b/g, "what is"], [/\bit'?s\b/g, "it is"], [/\bthat'?s\b/g, "that is"], [/\bwho'?s\b/g, "who is"],
+    [/\bwhere'?s\b/g, "where is"], [/\bhere'?s\b/g, "here is"], [/\bthere'?s\b/g, "there is"], [/\bi'?m\b/g, "i am"],
+    [/\byou'?re\b/g, "you are"], [/\bthey'?re\b/g, "they are"], [/\bwe'?re\b/g, "we are"], [/\bhe'?s\b/g, "he is"], [/\bshe'?s\b/g, "she is"],
+    [/\bdon'?t\b/g, "do not"], [/\bdoesn'?t\b/g, "does not"], [/\bisn'?t\b/g, "is not"], [/\bcan'?t\b/g, "can not"]];
+
+  function normalizeEn(s) {
+    var t = String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[\u2019\u2018]/g, "'");
+    CONTRACTIONS.forEach(function (c) { t = t.replace(c[0], c[1]); });
+    t = t.replace(/[-\/]/g, " ").replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+    return t;
+  }
+  function stripArticles(s) {
+    return s.replace(/^(a|an|the|to|to be) /, "").replace(/ (person|people)$/, "").trim();
+  }
+  // All English strings accepted for an item: each meaning in the gloss (split on / ; ,) plus explicit alternatives.
+  function englishVariants(item) {
+    var out = {};
+    function add(v) {
+      var n = normalizeEn(v);
+      if (!n) { return; }
+      out[n] = true;
+      out[stripArticles(n)] = true;
+    }
+    var gloss = item.en.replace(/\([^)]*\)/g, " ");
+    add(gloss);
+    gloss.split(/[\/;,]| or /).forEach(add);
+    (item.alt || "").split("|").forEach(add);
+    delete out[""];
+    return Object.keys(out);
+  }
+  function levenshtein(a, b) {
+    if (a === b) { return 0; }
+    var prev = [], cur = [], i, j;
+    for (j = 0; j <= b.length; j++) { prev[j] = j; }
+    for (i = 1; i <= a.length; i++) {
+      cur = [i];
+      for (j = 1; j <= b.length; j++) {
+        cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      }
+      prev = cur;
+    }
+    return prev[b.length];
+  }
+  // Exact match against any variant, or a near miss (1 typo from 5 letters, 2 typos from 9 letters).
+  function isEnglishCorrect(input, item) {
+    var n = stripArticles(normalizeEn(String(input || "").replace(/\([^)]*\)/g, " ")));
+    if (!n) { return false; }
+    var variants = englishVariants(item);
+    for (var i = 0; i < variants.length; i++) {
+      var v = variants[i];
+      if (n === v) { return true; }
+      var allowed = v.length >= 9 ? 2 : v.length >= 5 ? 1 : 0;
+      if (allowed && levenshtein(n, v) <= allowed) { return true; }
+    }
+    return false;
   }
 
   function entryFor(progress, id) {
@@ -181,6 +240,10 @@
     matchCase: matchCase,
     pickOptions: pickOptions,
     isCorrect: isCorrect,
+    normalizeEn: normalizeEn,
+    englishVariants: englishVariants,
+    levenshtein: levenshtein,
+    isEnglishCorrect: isEnglishCorrect,
     entryFor: entryFor,
     isDue: isDue,
     selectRound: selectRound,
