@@ -75,8 +75,12 @@
     var cat = state.settings.category;
     return cat ? ITEMS.filter(function (i) { return i.cat === cat; }) : ITEMS;
   }
-  function speak(text) {
-    if (!state.settings.tts || !window.speechSynthesis) { return; }
+  function speak(text, manual) {
+    if (!manual && !state.settings.tts) { return; }
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+      if (manual) { alert("This browser has no text-to-speech support."); }
+      return;
+    }
     try {
       window.speechSynthesis.cancel();
       var u = new SpeechSynthesisUtterance(C.stripStress(text));
@@ -87,9 +91,13 @@
       window.speechSynthesis.speak(u);
     } catch (e) { /* no speech support */ }
   }
-  function hasRussianVoice() {
-    if (!window.speechSynthesis) { return false; }
-    return window.speechSynthesis.getVoices().some(function (v) { return /^ru/i.test(v.lang); });
+  function speakButton(label) {
+    return '<button class="btn small speak" data-action="speak" title="Pronounce in Russian">🔊 ' + (label || "Listen") + "</button>";
+  }
+  // What the speaker button reads for the current question before it is answered.
+  function promptSpeech(q) {
+    if (q.kind === "meaning") { return q.item.ru; }
+    return q.prompt.replace(/ → \?$/, "").replace(/ \+ /g, ", ");
   }
   function drillStats(kind) {
     var qs = kind === "meaning" ? meaningQuestions(activeItems()) : G.DRILLS[kind].build(C);
@@ -248,7 +256,7 @@
       <section class="card">
         <h2>Settings &amp; data</h2>
         <div class="row wrap gap">
-          <label class="check"><input type="checkbox" data-setting="tts"${set.tts ? " checked" : ""}> Read sentences aloud after answering (needs a Russian voice in your browser)</label>
+          <label class="check"><input type="checkbox" data-setting="tts"${set.tts ? " checked" : ""}> Read aloud automatically: the word when a meaning question appears, and the answer after you respond. The 🔊 button always works.</label>
         </div>
         <div class="row wrap gap">
           <button class="btn small" data-action="export">Export progress</button>
@@ -319,7 +327,7 @@
           ${item.note ? '<div class="note">' + esc(item.note) + "</div>" : ""}
           <div class="row between">
             <span class="muted small">Mastery: ${masteryDots(newEntry.level)} ${LEVEL_LABELS[newEntry.level]}${round.lastCorrect ? " · next review in " + C.INTERVALS_DAYS[newEntry.level] + " day" + (C.INTERVALS_DAYS[newEntry.level] === 1 ? "" : "s") : " · back to 0%"}</span>
-            ${hasRussianVoice() ? '<button class="btn small" data-action="speak" title="Read aloud">🔊 Listen</button>' : ""}
+            ${speakButton()}
           </div>
           ${nextButton()}
         </div>`;
@@ -356,7 +364,7 @@
           <div class="explain">${q.explain}</div>
           <div class="row between">
             <span></span>
-            ${hasRussianVoice() ? '<button class="btn small" data-action="speak" title="Read aloud">🔊 Listen</button>' : ""}
+            ${speakButton()}
           </div>
           ${nextButton()}
         </div>`;
@@ -368,7 +376,7 @@
           <span class="chip">${esc(drillInfo(round.drill).title)}${q.kind === "meaning" ? " · " + esc(q.item.cat) : ""}</span>
           ${q.kind === "meaning" ? "" : '<button class="link small" data-action="lesson" data-id="' + G.DRILLS[round.drill].lesson + '">Lesson</button>'}
         </div>
-        <p class="sentence" lang="ru">${q.prompt}</p>
+        <p class="sentence prompt" lang="ru">${q.prompt}${!answered && q.kind !== "spelling" ? " " + speakButton(q.kind === "meaning" ? "Say it" : "") : ""}</p>
         <p class="translation">${q.sub}</p>
         ${answerArea}
       </section>`;
@@ -534,6 +542,7 @@
     if (round.kind === "drill") {
       var typing = item.kind === "meaning" || (state.settings.mode === "text" && item.kind === "plural");
       round.options = typing ? null : item.options;
+      if (item.kind === "meaning") { speak(item.item.ru); }
     } else {
       round.options = state.settings.mode === "mc" ? C.pickOptions(item, ITEMS) : null;
     }
@@ -584,7 +593,8 @@
     speak(speakText(item));
   }
   function speakText(item) {
-    return round.kind === "drill" ? item.speak : item.sentence.replace(/\{\{|\}\}/g, "");
+    if (round.kind === "drill") { return round.answered ? item.speak : promptSpeech(item); }
+    return item.sentence.replace(/\{\{|\}\}/g, "");
   }
   function next() {
     if (!round.answered) { return; }
@@ -638,7 +648,7 @@
     }
     else if (action === "giveup") { answer("", false); }
     else if (action === "next") { next(); }
-    else if (action === "speak") { speak(speakText(round.items[round.index])); }
+    else if (action === "speak") { speak(speakText(round.items[round.index]), true); }
     else if (action === "export") { exportProgress(); }
     else if (action === "reset") {
       if (confirm("Delete all progress and scores? This cannot be undone.")) {
@@ -687,6 +697,9 @@
     }
   });
 
-  if (window.speechSynthesis) { window.speechSynthesis.onvoiceschanged = function () { /* voices now loaded */ }; }
+  if (window.speechSynthesis) {
+    window.speechSynthesis.getVoices(); // voices load asynchronously; this warms the list
+    window.speechSynthesis.onvoiceschanged = function () { window.speechSynthesis.getVoices(); };
+  }
   render();
 })();
