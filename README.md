@@ -13,6 +13,10 @@ No build step and no dependencies. Either:
 
 Pushing to `main` deploys the app to GitHub Pages via the included workflow (enable Pages → Source: GitHub Actions in the repository settings once).
 
+## Meaning drill
+
+The **Meaning** section flips the direction: it shows the Russian word and you type the English. Any meaning listed for the word counts, articles and punctuation are ignored, contractions are expanded, and a typo or two in longer words is forgiven. Common synonyms (TV, luggage, flat, grandma…) are accepted through a seventh optional field in `js/data.js`, written as `"meaning one|meaning two"`.
+
 ## Grammar lessons and drills
 
 The home screen also has a **Grammar** section with four short lessons written around the same words, each with a drill:
@@ -41,7 +45,7 @@ Every drill answer comes with a one-line explanation of the rule that applies. Q
 
 | Path | What it is |
 | --- | --- |
-| `js/data.js` | The vocabulary: `[category, headword, English, sentence with {{blank}}, translation, note]` |
+| `js/data.js` | The vocabulary: `[category, headword, English, sentence with {{blank}}, translation, note, alternative English answers]` |
 | `js/core.js` | Pure game logic (normalisation, option picking, round selection, spaced repetition) |
 | `js/grammar.js` | Noun gender/plural data, adjective forms, lesson text and drill question generators |
 | `js/app.js` | UI rendering, keyboard handling, persistence |

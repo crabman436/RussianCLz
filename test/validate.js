@@ -12,8 +12,12 @@ function assert(cond, msg) { if (!cond) { fail(msg); } }
 const LATIN = /[A-Za-z]/;
 VOCAB.forEach((row, i) => {
   const where = `row ${i} (${row[1]})`;
-  assert(Array.isArray(row) && (row.length === 5 || row.length === 6), `${where}: expected 5 or 6 fields`);
-  row.forEach((f, j) => assert(typeof f === "string" && f.trim().length > 0, `${where}: field ${j} empty`));
+  assert(Array.isArray(row) && row.length >= 5 && row.length <= 7, `${where}: expected 5 to 7 fields`);
+  row.forEach((f, j) => assert(typeof f === "string" && (j === 5 || f.trim().length > 0), `${where}: field ${j} empty`));
+  if (row[6]) {
+    assert(!/[\u0400-\u04FF]/.test(row[6]), `${where}: Cyrillic in alternative English answers`);
+    assert(row[6].split("|").every((a) => a.trim()), `${where}: empty alternative answer`);
+  }
   const matches = row[3].match(/\{\{.+?\}\}/g) || [];
   assert(matches.length === 1, `${where}: sentence must contain exactly one {{blank}}`);
   if (matches.length === 1) {
@@ -52,6 +56,22 @@ if (items) {
   assert(!C.isCorrect("пока", privet), "wrong answer rejected");
   const chyo = items.find((i) => i.ru === "Чьё?");
   assert(C.isCorrect("чье", chyo), "ё/е treated as equal");
+
+  // ---- English meaning checking ----
+  const byRu = (ru) => items.find((i) => i.ru === ru);
+  const en = (ru, input) => C.isEnglishCorrect(input, byRu(ru));
+  assert(en("Приве́т", "hi") && en("Приве́т", "Hello!"), "either listed meaning is accepted, case and punctuation ignored");
+  assert(!en("Приве́т", "goodbye"), "wrong meaning rejected");
+  assert(en("Как тебя́ зову́т?", "What\u2019s your name?"), "contractions expanded");
+  assert(en("су́мка", "a handbag") && en("су́мка", "the bag"), "articles ignored, alternatives accepted");
+  assert(en("два́дцать оди́н", "21") && en("два́дцать оди́н", "twenty-one"), "digits and hyphens accepted for numbers");
+  assert(en("краси́вый", "beatiful") && !en("кни́га", "boook"), "one typo forgiven in long words, not in short ones");
+  assert(en("англича́нин", "English") && en("англича́нин", "English person"), "trailing person optional");
+  assert(!en("Я", "we") && en("Я", "I"), "short answers must match exactly");
+  assert(!en("дя́дя", "aunt"), "aunt is not uncle");
+  assert(!en("ко́мната", ""), "empty answer rejected");
+  items.forEach((i) => assert(C.englishVariants(i).length > 0, `${i.ru}: no English variants`));
+  items.forEach((i) => assert(en(i.ru, i.en), `${i.ru}: its own gloss should be accepted`));
 
   // ---- spaced repetition ----
   const now = Date.UTC(2026, 0, 1);

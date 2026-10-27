@@ -9,6 +9,9 @@
   var STORAGE_KEY = "russianclz-v1";
   var LEVEL_LABELS = ["0%", "25%", "50%", "75%", "100%"];
   var DRILL_POINTS = { mc: 2, text: 4 };
+  var MEANING_POINTS = 6;
+  var MEANING = { title: "Meaning drill", desc: "See the Russian word, type the English meaning." };
+  function drillInfo(kind) { return kind === "meaning" ? MEANING : G.DRILLS[kind]; }
 
   var state = loadState();
   var view = { name: "home" };
@@ -89,7 +92,7 @@
     return window.speechSynthesis.getVoices().some(function (v) { return /^ru/i.test(v.lang); });
   }
   function drillStats(kind) {
-    var qs = G.DRILLS[kind].build(C);
+    var qs = kind === "meaning" ? meaningQuestions(activeItems()) : G.DRILLS[kind].build(C);
     var s = { total: qs.length, seen: 0, correct: 0, wrong: 0 };
     qs.forEach(function (q) {
       var e = state.grammar[q.id];
@@ -218,6 +221,15 @@
       </section>
 
       <section class="card">
+        <h2>Meaning</h2>
+        <p class="muted small">The word in Russian, the meaning in English, typed by you. Any meaning given in the list counts; articles, punctuation and small typos are forgiven. Uses the collection and round size chosen above. ${MEANING_POINTS} points per answer; words you miss come back sooner.</p>
+        <div class="row between wrap">
+          <span class="muted small">${meaningSummary()}</span>
+          <button class="btn primary" data-action="drill" data-kind="meaning">Start meaning drill${set.category ? " · " + esc(set.category) : ""}</button>
+        </div>
+      </section>
+
+      <section class="card">
         <h2>Grammar</h2>
         <p class="muted small">Short lessons built from the word list, each with a drill. Drills use the round size above; the plural drill also follows the answer mode (typing gives 4 points, choice gives 2). Questions you get wrong come back more often.</p>
         <div class="grammar-list">${grammarRows}</div>
@@ -248,6 +260,12 @@
 
       <footer class="muted small">Keyboard: <kbd>1</kbd>–<kbd>4</kbd> choose, <kbd>Enter</kbd> submit / next, <kbd>Esc</kbd> back home.</footer>
     `;
+  }
+
+  function meaningSummary() {
+    var ms = drillStats("meaning");
+    var acc = ms.correct + ms.wrong ? " · " + Math.round((ms.correct / (ms.correct + ms.wrong)) * 100) + "% right" : "";
+    return ms.seen + " / " + ms.total + " words tried" + acc;
   }
 
   function renderLesson() {
@@ -327,7 +345,9 @@
     var answered = round.answered;
     var answerArea;
     if (!answered) {
-      answerArea = round.options ? optionButtons(round.options) : typingForm("Type the plural…", "Stress marks and ё/е are ignored when checking.");
+      answerArea = round.options ? optionButtons(round.options)
+        : q.kind === "meaning" ? typingForm("Type the English meaning…", "Any listed meaning counts. Articles, punctuation and small typos are ignored.", "en")
+        : typingForm("Type the plural…", "Stress marks and ё/е are ignored when checking.");
     } else {
       answerArea = h`
         <div class="reveal ${round.lastCorrect ? "ok" : "bad"}">
@@ -345,8 +365,8 @@
       ${playHeader()}
       <section class="card play">
         <div class="row between meta">
-          <span class="chip">${esc(G.DRILLS[round.drill].title)}</span>
-          <button class="link small" data-action="lesson" data-id="${G.DRILLS[round.drill].lesson}">Lesson</button>
+          <span class="chip">${esc(drillInfo(round.drill).title)}${q.kind === "meaning" ? " · " + esc(q.item.cat) : ""}</span>
+          ${q.kind === "meaning" ? "" : '<button class="link small" data-action="lesson" data-id="' + G.DRILLS[round.drill].lesson + '">Lesson</button>'}
         </div>
         <p class="sentence" lang="ru">${q.prompt}</p>
         <p class="translation">${q.sub}</p>
@@ -372,10 +392,10 @@
       return '<button class="btn option" data-action="choose" data-i="' + i + '"><kbd>' + (i + 1) + "</kbd> " + esc(o.label) + "</button>";
     }).join("") + "</div>";
   }
-  function typingForm(placeholder, hint) {
+  function typingForm(placeholder, hint, lang) {
     return h`
       <form class="typing" data-action="submit">
-        <input type="text" id="answer" autocomplete="off" autocapitalize="off" spellcheck="false" lang="ru" placeholder="${placeholder}" autofocus>
+        <input type="text" id="answer" autocomplete="off" autocapitalize="off" spellcheck="false" lang="${lang || "ru"}" placeholder="${placeholder}" autofocus>
         <button class="btn primary" type="submit">Check</button>
         <button class="btn" type="button" data-action="giveup">Show answer</button>
       </form>
@@ -416,7 +436,7 @@
         <div class="pills"><span class="pill">★ ${state.score}</span></div>
       </header>
       <section class="card">
-        <h2>${isDrill ? esc(G.DRILLS[round.drill].title) + " complete" : "Round complete"}</h2>
+        <h2>${isDrill ? esc(drillInfo(round.drill).title) + " complete" : "Round complete"}</h2>
         <div class="stats">
           <div><b>${round.correct} / ${n}</b><span>correct</span></div>
           <div><b>+${round.points}</b><span>points</span></div>
@@ -478,8 +498,24 @@
     view = { name: "play" };
     render();
   }
+  function meaningQuestions(items) {
+    return items.map(function (it) {
+      return {
+        id: "meaning:" + it.id,
+        kind: "meaning",
+        item: it,
+        prompt: esc(it.ru),
+        sub: it.note ? esc(it.note) : "&nbsp;",
+        answer: it.en,
+        alts: [],
+        options: null,
+        explain: '<span lang="ru">' + esc(it.before + it.answer + it.after) + '</span><br><span class="muted">' + esc(it.translation) + "</span>",
+        speak: it.ru
+      };
+    });
+  }
   function startDrill(kind) {
-    var all = G.DRILLS[kind].build(C);
+    var all = kind === "meaning" ? meaningQuestions(activeItems()) : G.DRILLS[kind].build(C);
     // Weight: questions answered wrong most often come first, then least-seen; random tiebreak.
     var scored = all.map(function (q) {
       var e = state.grammar[q.id] || { seen: 0, correct: 0, wrong: 0 };
@@ -496,7 +532,7 @@
     round.answered = false;
     round.lastInput = "";
     if (round.kind === "drill") {
-      var typing = state.settings.mode === "text" && item.kind === "plural";
+      var typing = item.kind === "meaning" || (state.settings.mode === "text" && item.kind === "plural");
       round.options = typing ? null : item.options;
     } else {
       round.options = state.settings.mode === "mc" ? C.pickOptions(item, ITEMS) : null;
@@ -505,6 +541,7 @@
   function checkTyped(input) {
     var item = round.items[round.index];
     if (round.kind === "drill") {
+      if (item.kind === "meaning") { return C.isEnglishCorrect(input, item.item); }
       var n = C.normalizeRu(input);
       return n === C.normalizeRu(item.answer) || item.alts.some(function (a) { return C.normalizeRu(a) === n; });
     }
@@ -520,7 +557,7 @@
       e.seen += 1; e.last = now;
       if (correct) { e.correct += 1; } else { e.wrong += 1; }
       state.grammar[item.id] = e;
-      pts = correct ? (round.options ? DRILL_POINTS.mc : DRILL_POINTS.text) : 0;
+      pts = correct ? (item.kind === "meaning" ? MEANING_POINTS : round.options ? DRILL_POINTS.mc : DRILL_POINTS.text) : 0;
     } else {
       state.progress[item.id] = C.applyAnswer(C.entryFor(state.progress, item.id), correct, now);
       pts = correct ? C.POINTS[state.settings.mode] : 0;
