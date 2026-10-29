@@ -340,7 +340,21 @@ var VOCAB = [
   ["Connector Words", "а", "and, but (contrast)", "Я студент, {{а}} она аспирантка.", "I'm a student, and she is a graduate student.", "", "and|but|whereas|while"],
   ["Connector Words", "и", "and", "Мама {{и}} папа дома.", "Mom and dad are at home."],
   ["Connector Words", "не", "not", "Это {{не}} мой ключ.", "This is not my key.", "", "not|no"],
-  ["Connector Words", "но", "but", "Квартира старая, {{но}} удобная.", "The apartment is old, but comfortable."]
+  ["Connector Words", "но", "but", "Квартира старая, {{но}} удобная.", "The apartment is old, but comfortable."],
+  // ---------- Verbs ----------
+  ["Verbs", "слу́шать", "to listen", "Я люблю {{слушать}} музыку.", "I like to listen to music.", "+ accusative: слушать музыку, радио", "listen|listen to|hear"],
+  ["Verbs", "игра́ть", "to play", "Дети любят {{играть}}.", "Children like to play.", "играть в + accusative (a sport); играть на + prepositional (an instrument)", "play"],
+  ["Verbs", "игра́ть в", "to play (a sport)", "Мой брат любит {{играть в}} футбол.", "My brother likes to play soccer.", "в + accusative: в футбол, в теннис, в хоккей", "play a sport|play sport|play sports|play|play soccer|play football"],
+  ["Verbs", "игра́ть на", "to play (an instrument)", "Моя сестра любит {{играть на}} гитаре.", "My sister likes to play the guitar.", "на + prepositional: на гитаре, на пианино", "play an instrument|play instrument|play instruments|play music|play|play the guitar"],
+  ["Verbs", "де́лать", "to do", "Что ты любишь {{делать}}?", "What do you like to do?", "+ accusative", "do|make"],
+  ["Verbs", "знать", "to know", "Я хочу {{знать}} твой адрес.", "I want to know your address.", "+ accusative", "know"],
+  ["Verbs", "отдыха́ть", "to rest, to relax", "Дома я люблю {{отдыхать}}.", "At home I like to relax.", "", "rest|relax|take a rest|have a rest|chill"],
+  ["Verbs", "убира́ть", "to clean up, to tidy up", "Я не люблю {{убирать}} комнату.", "I don't like to clean up the room.", "+ accusative: убирать комнату, квартиру", "clean|clean up|tidy|tidy up|clean the room"],
+  ["Verbs", "ду́мать", "to think", "Мне надо {{думать}} о работе.", "I need to think about work.", "думать о + prepositional: думать о семье", "think|think about"],
+  ["Verbs", "гуля́ть", "to stroll, to go for a walk", "Я люблю {{гулять}} по городу.", "I like to stroll around the city.", "гулять по + dative: гулять по парку, по городу", "stroll|walk|take a walk|go for a walk|take a stroll|go for a stroll"],
+  ["Verbs", "рабо́тать", "to work", "Мой папа любит {{работать}} дома.", "My dad likes to work at home.", "", "work"],
+  ["Verbs", "чита́ть", "to read", "Вечером я люблю {{читать}} книги.", "In the evening I like to read books.", "+ accusative: читать книгу, газету", "read"],
+  ["Verbs", "жить", "to live", "Где ты хочешь {{жить}}?", "Where do you want to live?", "я живу́, ты живёшь, они живу́т", "live|reside"]
 ];
 
 if (typeof module !== "undefined") { module.exports = VOCAB; }

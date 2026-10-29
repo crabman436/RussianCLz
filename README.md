@@ -1,6 +1,6 @@
 # RussianCLz
 
-A Clozemaster-style trainer for the **First Year Russian Word List 4**: 300 fill-in-the-blank sentences across 20 categories (greetings, family, clothing, housing, numbers, adjectives and more).
+A Clozemaster-style trainer for the **First Year Russian Word List 4**: 313 fill-in-the-blank sentences across 21 categories (greetings, family, clothing, housing, numbers, adjectives, verbs and more).
 
 Each turn shows a Russian sentence with one word missing and its English translation. Pick the word from four choices, or type it. Correct answers raise a sentence's mastery (0% → 25% → 50% → 75% → 100%) and schedule it for review later; a wrong answer drops it back to 0%, just like Clozemaster.
 
